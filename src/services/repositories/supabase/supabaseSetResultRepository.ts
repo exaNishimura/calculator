@@ -6,6 +6,23 @@ import { mapSetResultRow, mapSetResultToRow } from './mappers';
 export class SupabaseSetResultRepository implements ISetResultRepository {
   private readonly client = getSupabaseClient();
 
+  async getByTeamAndSet(
+    teamId: string,
+    setNumber: number,
+  ): Promise<SetResult | null> {
+    const { data, error } = await this.client
+      .from('set_results')
+      .select('*')
+      .eq('team_id', teamId)
+      .eq('set_number', setNumber)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+    return data ? mapSetResultRow(data) : null;
+  }
+
   async listByTeam(teamId: string): Promise<SetResult[]> {
     const { data, error } = await this.client
       .from('set_results')
@@ -38,6 +55,21 @@ export class SupabaseSetResultRepository implements ISetResultRepository {
         throw new DuplicateSetResultError(result.teamId, result.setNumber);
       }
       throw new Error(error?.message ?? 'set_results の保存に失敗しました');
+    }
+    return mapSetResultRow(data);
+  }
+
+  async update(result: SetResult): Promise<SetResult> {
+    const row = mapSetResultToRow(result);
+    const { data, error } = await this.client
+      .from('set_results')
+      .update(row)
+      .eq('id', result.id)
+      .select('*')
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message ?? 'set_results の更新に失敗しました');
     }
     return mapSetResultRow(data);
   }

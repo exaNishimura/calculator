@@ -4,4 +4,5 @@ export { AssetHeader } from './AssetHeader';
 export { BorrowPanel } from './BorrowPanel';
 export { EventAnnouncementCard } from './EventAnnouncementCard';
 export { InvestmentList } from './InvestmentList';
+export { SetSelector } from './SetSelector';
 export { TeamActionBar } from './TeamActionBar';

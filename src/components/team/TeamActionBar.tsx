@@ -6,17 +6,19 @@ interface TeamActionBarProps {
   team: Team;
   teamCode: string;
   busy: boolean;
+  isViewingPastSet?: boolean;
   canCompleteInvestment?: boolean;
   onCompleteInvestment: () => void;
+  onSavePastSet?: () => void;
   onProceedToEvent: () => void;
 }
 
 function statusMessage(status: TeamStatus): string | null {
   switch (status) {
     case 'investment_submitted':
-      return '投資を確定しました。内容を確認してイベント画面へ進んでください。';
+      return '投資内容は修正できます。変更後は「投資を更新」で保存し、イベント画面へ進んでください。';
     case 'waiting_event':
-      return 'イベント画面で結果を確認・確定できます。';
+      return '投資内容は修正できます。変更後は「投資を更新」で保存してください。';
     case 'finished':
       return 'ゲーム終了 — お疲れさまでした。';
     default:
@@ -28,11 +30,15 @@ export function TeamActionBar({
   team,
   teamCode,
   busy,
+  isViewingPastSet = false,
   canCompleteInvestment = true,
   onCompleteInvestment,
+  onSavePastSet,
   onProceedToEvent,
 }: TeamActionBarProps) {
-  const message = statusMessage(team.status);
+  const message = isViewingPastSet
+    ? '確定済み SET の投資を修正できます。保存すると以降の SET も再計算されます。'
+    : statusMessage(team.status);
 
   return (
     <aside
@@ -43,20 +49,29 @@ export function TeamActionBar({
         {message ? (
           <p className="text-center text-sm text-game-muted">{message}</p>
         ) : null}
-        {team.status === 'investing' ? (
+        {isViewingPastSet ? (
+          <GameButton disabled={busy} onClick={onSavePastSet}>
+            この SET の投資を保存
+          </GameButton>
+        ) : null}
+        {!isViewingPastSet &&
+        (team.status === 'investing' ||
+          team.status === 'investment_submitted' ||
+          team.status === 'waiting_event') ? (
           <GameButton
             disabled={busy || !canCompleteInvestment}
             onClick={onCompleteInvestment}
           >
-            投資完了
+            {team.status === 'investing' ? '投資完了' : '投資を更新'}
           </GameButton>
         ) : null}
-        {team.status === 'investment_submitted' ? (
+        {!isViewingPastSet && team.status === 'investment_submitted' ? (
           <GameButton disabled={busy} onClick={onProceedToEvent}>
             イベント画面へ進む
           </GameButton>
         ) : null}
-        {team.status === 'waiting_event' || team.status === 'finished' ? (
+        {!isViewingPastSet &&
+        (team.status === 'waiting_event' || team.status === 'finished') ? (
           <Link
             to={`/team/${teamCode}/event`}
             className="block min-h-14 rounded-xl bg-game-accent px-6 text-center text-lg font-bold leading-[3.5rem] text-white"

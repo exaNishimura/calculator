@@ -9,6 +9,7 @@ import type {
   SetResult,
   Team,
 } from '@/types/domain';
+import { calculateSetResultSafe } from '@/utils/calculator';
 import { sumInvestments, validateInvestmentTotal } from '@/utils/validation';
 import type { EventCalculationService } from './eventCalculationService';
 import { getActiveEventForTeam } from './eventAssignmentService';
@@ -63,10 +64,14 @@ export class GameProgressService {
     investments: InvestmentLine[],
   ): Promise<Team> {
     const team = await this.requireTeam(teamId);
-    if (team.status !== 'investing') {
+    const canSubmit =
+      team.status === 'investing' ||
+      team.status === 'investment_submitted' ||
+      team.status === 'waiting_event';
+    if (!canSubmit) {
       throw new GameProgressError(
         'INVALID_STATUS',
-        '投資完了は investing のときのみ可能です',
+        '投資の保存は SET 確定前まで可能です',
       );
     }
 
@@ -80,9 +85,12 @@ export class GameProgressService {
     }
 
     const now = new Date().toISOString();
+    const nextStatus =
+      team.status === 'investing' ? 'investment_submitted' : team.status;
+
     return this.repos.teams.upsert({
       ...team,
-      status: 'investment_submitted',
+      status: nextStatus,
       pendingInvestments: investments.map((line) => ({ ...line })),
       investmentSubmittedAt: now,
     });
@@ -174,5 +182,89 @@ export class GameProgressService {
     });
 
     return { team: updatedTeam, setResult: savedResult };
+  }
+
+  async updateCompletedSetInvestments(
+    teamId: string,
+    setNumber: number,
+    investments: InvestmentLine[],
+  ): Promise<{ team: Team; setResults: SetResult[] }> {
+    const team = await this.requireTeam(teamId);
+    const history = await this.repos.setResults.listByTeam(teamId);
+    const target = history.find((row) => row.setNumber === setNumber);
+    if (!target) {
+      throw new GameProgressError(
+        'INVALID_STATUS',
+        `SET${setNumber} はまだ確定していません`,
+      );
+    }
+
+    const total = sumInvestments(investments);
+    const validation = validateInvestmentTotal(total, target.startingAsset);
+    if (!validation.ok) {
+      throw new GameProgressError(
+        'INVALID_INVESTMENTS',
+        validation.error.message,
+      );
+    }
+
+    const recalculated = new Map<number, SetResult>();
+    for (const record of history) {
+      if (record.setNumber < setNumber) {
+        recalculated.set(record.setNumber, record);
+        continue;
+      }
+
+      const startingAsset =
+        record.setNumber === setNumber
+          ? record.startingAsset
+          : (recalculated.get(record.setNumber - 1)?.resultAsset ??
+            record.startingAsset);
+
+      const lines =
+        record.setNumber === setNumber
+          ? investments.map((line) => ({ ...line }))
+          : record.investments.map((line) => ({ ...line }));
+
+      const calc = calculateSetResultSafe({
+        currentAsset: startingAsset,
+        investments: lines,
+        eventId: record.selectedEvent,
+      });
+      if (!calc.ok) {
+        throw new GameProgressError('INVALID_INVESTMENTS', calc.error.message);
+      }
+
+      const nextRecord: SetResult = {
+        ...record,
+        startingAsset,
+        investments: lines,
+        resultAsset: calc.value.setEndingAsset,
+      };
+      const saved = await this.repos.setResults.update(nextRecord);
+      recalculated.set(record.setNumber, saved);
+    }
+
+    const updatedHistory = [...recalculated.values()].sort(
+      (a, b) => a.setNumber - b.setNumber,
+    );
+
+    let nextTeam = team;
+    const priorSet = team.currentSet - 1;
+    const priorResult = recalculated.get(priorSet);
+    if (
+      priorResult &&
+      team.currentSet > setNumber &&
+      team.status === 'investing' &&
+      !team.borrowedInCurrentSet
+    ) {
+      nextTeam = await this.repos.teams.upsert({
+        ...team,
+        currentAsset: priorResult.resultAsset,
+        netAsset: priorResult.resultAsset - team.totalDebt,
+      });
+    }
+
+    return { team: nextTeam, setResults: updatedHistory };
   }
 }

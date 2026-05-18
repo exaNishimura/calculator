@@ -107,6 +107,95 @@ describe('TeamEntryPage', () => {
         screen.getByRole('button', { name: 'イベント画面へ進む' }),
       ).toBeInTheDocument();
     });
-    expect(screen.queryByRole('button', { name: '削除' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '投資を更新' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument();
+  });
+
+  it('allows revising investments after submission', async () => {
+    const seeded = await repositories.teams.getByCode('shogai');
+    await repositories.teams.upsert({
+      ...seeded!,
+      currentAsset: 500_000,
+      status: 'investment_submitted',
+      pendingInvestments: [
+        { id: 'inv-1', sector: 'agriculture', amount: 50_000 },
+      ],
+      investmentSubmittedAt: new Date().toISOString(),
+    });
+    await useTeamDraftStore.getState().syncFromServer('shogai');
+
+    renderTeamPage();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '削除' })).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('add-investment-form')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '投資を更新' }),
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: '削除' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('investment-list')).not.toHaveTextContent('農業');
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: '投資を追加' }));
+    expect(screen.getByTestId('investment-list')).toHaveTextContent('農業');
+
+    await userEvent.click(screen.getByRole('button', { name: '投資を更新' }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'イベント画面へ進む' }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('loads and saves investments for a completed SET', async () => {
+    const seeded = await repositories.teams.getByCode('shogai');
+    const team = await repositories.teams.upsert({
+      ...seeded!,
+      currentSet: 2,
+      currentAsset: 520_000,
+      status: 'investing',
+      pendingInvestments: null,
+    });
+    await repositories.setResults.create({
+      id: 'set-1',
+      teamId: team.id,
+      setNumber: 1,
+      startingAsset: 500_000,
+      investments: [{ id: 'inv-1', sector: 'agriculture', amount: 50_000 }],
+      selectedEvent: 'evt_01',
+      resultAsset: 520_000,
+      borrowedAmount: 0,
+      debtAdded: 0,
+      completedAt: new Date().toISOString(),
+    });
+    await useTeamDraftStore.getState().loadTeam('shogai');
+
+    renderTeamPage();
+    await waitFor(() => {
+      expect(screen.getByTestId('set-selector')).toBeInTheDocument();
+    });
+
+    await userEvent.selectOptions(
+      screen.getByLabelText('編集する SET'),
+      '1',
+    );
+    await waitFor(() => {
+      expect(screen.getByText(/SET1 の開始資産/)).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('investment-list')).toHaveTextContent('農業');
+
+    await userEvent.click(screen.getByRole('button', { name: '削除' }));
+    await userEvent.click(screen.getByRole('button', { name: '投資を追加' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'この SET の投資を保存' }),
+    );
+
+    await waitFor(async () => {
+      const history = await repositories.setResults.listByTeam(team.id);
+      expect(history[0]?.investments).toHaveLength(1);
+      expect(history[0]?.investments[0]?.sector).toBe('agriculture');
+    });
   });
 });

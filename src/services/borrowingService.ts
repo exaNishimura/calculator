@@ -4,17 +4,15 @@ import {
   computeFinalAsset as computeFinalAssetValue,
   tryBorrow,
 } from '@/utils/validation';
-import { isInvestmentEditable } from './types';
-
 export function canBorrow(team: Team): boolean {
-  if (!isInvestmentEditable(team.status)) {
+  if (team.status !== 'investing') {
     return false;
   }
   return canBorrowByAsset(team.currentAsset, team.borrowedInCurrentSet);
 }
 
 export function executeBorrow(team: Team): Result<Team> {
-  if (!isInvestmentEditable(team.status)) {
+  if (team.status !== 'investing') {
     return {
       ok: false,
       error: {

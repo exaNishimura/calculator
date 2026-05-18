@@ -6,19 +6,25 @@ interface AssetHeaderProps {
   team: Team;
   remainingBudget: number;
   showCurrentAsset?: boolean;
+  viewingSetNumber?: number;
 }
 
 export function AssetHeader({
   team,
   remainingBudget,
   showCurrentAsset = true,
+  viewingSetNumber,
 }: AssetHeaderProps) {
   const netAsset = computeNetAsset(team.currentAsset, team.totalDebt);
+  const setLabel = viewingSetNumber ?? team.currentSet;
 
   return (
     <Card data-testid="asset-header">
       <header className="mb-4 flex flex-wrap items-center gap-2">
-        <Badge>SET {team.currentSet}</Badge>
+        <Badge>SET {setLabel}</Badge>
+        {viewingSetNumber && viewingSetNumber !== team.currentSet ? (
+          <Badge tone="warning">過去 SET を編集中</Badge>
+        ) : null}
         {team.totalDebt > 0 ? (
           <Badge tone="warning">借入あり</Badge>
         ) : null}

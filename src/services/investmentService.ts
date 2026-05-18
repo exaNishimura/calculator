@@ -17,18 +17,28 @@ export function isEditable(status: TeamStatus): boolean {
   return isInvestmentEditable(status);
 }
 
-export function getRemainingBudget(draft: TeamDraft): number {
-  return draft.team.currentAsset - sumInvestments(draft.investments);
+export function getRemainingBudget(
+  draft: TeamDraft,
+  assetCap?: number,
+): number {
+  const cap = assetCap ?? draft.team.currentAsset;
+  return cap - sumInvestments(draft.investments);
+}
+
+export interface InvestmentEditOptions {
+  assetCap?: number;
+  forceEditable?: boolean;
 }
 
 export function addInvestment(
   draft: TeamDraft,
   line: Omit<InvestmentLine, 'id'>,
+  options?: InvestmentEditOptions,
 ): Result<TeamDraft> {
-  if (!isEditable(draft.team.status)) {
+  if (!options?.forceEditable && !isEditable(draft.team.status)) {
     return validationError(
       'INVALID_AMOUNT',
-      '投資の編集は入力中（investing）のときのみ可能です',
+      '投資の編集は SET 確定前まで可能です',
     );
   }
 
@@ -37,15 +47,13 @@ export function addInvestment(
     return amountResult;
   }
 
+  const assetCap = options?.assetCap ?? draft.team.currentAsset;
   const nextInvestments: InvestmentLine[] = [
     ...draft.investments,
     { ...line, id: crypto.randomUUID() },
   ];
   const total = sumInvestments(nextInvestments);
-  const totalResult = validateInvestmentTotal(
-    total,
-    draft.team.currentAsset,
-  );
+  const totalResult = validateInvestmentTotal(total, assetCap);
   if (!totalResult.ok) {
     return totalResult;
   }
@@ -56,8 +64,12 @@ export function addInvestment(
   };
 }
 
-export function removeInvestment(draft: TeamDraft, lineId: string): TeamDraft {
-  if (!isEditable(draft.team.status)) {
+export function removeInvestment(
+  draft: TeamDraft,
+  lineId: string,
+  options?: Pick<InvestmentEditOptions, 'forceEditable'>,
+): TeamDraft {
+  if (!options?.forceEditable && !isEditable(draft.team.status)) {
     return draft;
   }
 

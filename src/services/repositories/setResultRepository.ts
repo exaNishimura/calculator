@@ -25,6 +25,14 @@ export class LocalSetResultRepository implements ISetResultRepository {
       .sort((a, b) => a.setNumber - b.setNumber);
   }
 
+  async getByTeamAndSet(
+    teamId: string,
+    setNumber: number,
+  ): Promise<SetResult | null> {
+    const results = await this.listByTeam(teamId);
+    return results.find((result) => result.setNumber === setNumber) ?? null;
+  }
+
   async create(result: SetResult): Promise<SetResult> {
     const results = this.readAll();
     const exists = results.some(
@@ -43,6 +51,17 @@ export class LocalSetResultRepository implements ISetResultRepository {
     results.push(next);
     this.writeAll(results);
     return next;
+  }
+
+  async update(result: SetResult): Promise<SetResult> {
+    const results = this.readAll();
+    const index = results.findIndex((item) => item.id === result.id);
+    if (index === -1) {
+      throw new Error(`Set result not found: ${result.id}`);
+    }
+    results[index] = result;
+    this.writeAll(results);
+    return result;
   }
 
   async resetAll(): Promise<void> {

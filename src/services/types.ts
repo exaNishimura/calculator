@@ -42,6 +42,11 @@ export class GameProgressError extends Error {
   }
 }
 
+/** 投資の追加・削除が可能なステータス（SET 確定前まで） */
 export function isInvestmentEditable(status: TeamStatus): boolean {
-  return status === 'investing';
+  return (
+    status === 'investing' ||
+    status === 'investment_submitted' ||
+    status === 'waiting_event'
+  );
 }

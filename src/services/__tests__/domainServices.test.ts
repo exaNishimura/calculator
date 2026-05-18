@@ -86,22 +86,27 @@ describe('InvestmentService', () => {
     }
   });
 
-  it('blocks edits when not investing', () => {
-    const locked = investingTeam({ status: 'investment_submitted' });
-    const draft = { team: locked, investments: [] };
-    expect(isEditable(locked.status)).toBe(false);
+  it('allows edits after investment submission until SET is confirmed', () => {
+    const submitted = investingTeam({ status: 'investment_submitted' });
+    const draft = { team: submitted, investments: [] };
+    expect(isEditable(submitted.status)).toBe(true);
 
     const result = addInvestment(draft, {
       sector: 'food',
       amount: 10_000,
     });
-    expect(result.ok).toBe(false);
+    expect(result.ok).toBe(true);
+  });
 
-    const removed = removeInvestment(
-      { team: locked, investments: [{ id: 'x', sector: 'food', amount: 10_000 }] },
-      'x',
+  it('blocks edits when game is finished', () => {
+    const finished = investingTeam({ status: 'finished' });
+    expect(isEditable(finished.status)).toBe(false);
+
+    const result = addInvestment(
+      { team: finished, investments: [] },
+      { sector: 'food', amount: 10_000 },
     );
-    expect(removed.investments).toHaveLength(1);
+    expect(result.ok).toBe(false);
   });
 
   it('removes investment line when editable', () => {
@@ -238,6 +243,16 @@ describe('GameProgressService', () => {
     expect(submitted.status).toBe('investment_submitted');
     expect(submitted.pendingInvestments).toHaveLength(1);
 
+    const revised = await progress.completeInvestmentSubmission(
+      teamWithAsset.id,
+      [
+        ...investments,
+        { id: 'inv-2', sector: 'it' as const, amount: 10_000 },
+      ],
+    );
+    expect(revised.status).toBe('investment_submitted');
+    expect(revised.pendingInvestments).toHaveLength(2);
+
     const waiting = await progress.proceedToEvent(teamWithAsset.id);
     expect(waiting.status).toBe('waiting_event');
 
@@ -257,6 +272,20 @@ describe('GameProgressService', () => {
     expect(confirmed.team.currentSet).toBe(2);
     expect(confirmed.team.pendingInvestments).toBeNull();
     expect(confirmed.team.borrowedInCurrentSet).toBe(false);
+
+    const revisedHistory = await progress.updateCompletedSetInvestments(
+      teamWithAsset.id,
+      1,
+      [
+        { id: 'inv-1', sector: 'agriculture' as const, amount: 30_000 },
+        { id: 'inv-3', sector: 'food' as const, amount: 20_000 },
+      ],
+    );
+    expect(revisedHistory.setResults).toHaveLength(1);
+    expect(revisedHistory.setResults[0]?.investments).toHaveLength(2);
+    expect(revisedHistory.team.currentAsset).toBe(
+      revisedHistory.setResults[0]?.resultAsset,
+    );
 
     const calc = new EventCalculationService();
     const preview = calc.preview(confirmed.team, investments, session);

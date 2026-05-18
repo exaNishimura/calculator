@@ -43,14 +43,14 @@ describe('Phase 1 smoke — investment completion lock (Req 2.8)', () => {
       [{ id: 'inv-1', sector: 'food', amount: 50_000 }],
     );
 
-    expect(isEditable(submitted.status)).toBe(false);
+    expect(isEditable(submitted.status)).toBe(true);
     expect(submitted.pendingInvestments).toHaveLength(1);
 
     const addResult = addInvestment(
       { team: submitted, investments: submitted.pendingInvestments ?? [] },
       { sector: 'it', amount: 10_000 },
     );
-    expect(addResult.ok).toBe(false);
+    expect(addResult.ok).toBe(true);
   });
 });
 

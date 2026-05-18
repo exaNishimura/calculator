@@ -18,7 +18,9 @@ export interface ITeamRepository {
 
 export interface ISetResultRepository {
   listByTeam(teamId: string): Promise<SetResult[]>;
+  getByTeamAndSet(teamId: string, setNumber: number): Promise<SetResult | null>;
   create(result: SetResult): Promise<SetResult>;
+  update(result: SetResult): Promise<SetResult>;
   resetAll(): Promise<void>;
 }
 
