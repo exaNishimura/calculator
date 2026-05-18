@@ -57,8 +57,11 @@ export function CurrentAssetInput({
   };
 
   return (
-    <Card data-testid="current-asset-input">
-      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-game-muted">
+    <Card
+      data-testid="current-asset-input"
+      className="border-2 border-game-accent/70 shadow-xl shadow-blue-500/15"
+    >
+      <h2 className="mb-2 text-base font-bold uppercase tracking-wide text-white">
         現在資産
       </h2>
       <p className="mb-3 text-sm text-game-muted">
@@ -84,7 +87,12 @@ export function CurrentAssetInput({
             {error}
           </p>
         ) : null}
-        <GameButton type="submit" variant="secondary" disabled={busy}>
+        <GameButton
+          type="submit"
+          variant="primary"
+          disabled={busy}
+          className="min-h-16 text-xl shadow-lg shadow-blue-500/35 ring-2 ring-white/20"
+        >
           現在資産を保存
         </GameButton>
       </form>

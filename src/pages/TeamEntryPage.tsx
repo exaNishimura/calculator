@@ -6,7 +6,6 @@ import {
   AssetHeader,
   BorrowPanel,
   CurrentAssetInput,
-  EventAnnouncementCard,
   InvestmentList,
   TeamActionBar,
 } from '@/components/team';
@@ -20,7 +19,7 @@ import {
 import { syncService } from '@/services/instances';
 import { STORAGE_KEYS } from '@/services/repositories/storage';
 import { repositories } from '@/services/repositories';
-import { useGameStore, useTeamDraftStore } from '@/stores';
+import { useTeamDraftStore } from '@/stores';
 import type { Sector } from '@/types/domain';
 
 export function TeamEntryPage() {
@@ -31,7 +30,6 @@ export function TeamEntryPage() {
   const addInvestment = useTeamDraftStore((state) => state.addInvestment);
   const removeInvestment = useTeamDraftStore((state) => state.removeInvestment);
   const syncFromServer = useTeamDraftStore((state) => state.syncFromServer);
-  const session = useGameStore((state) => state.session);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -113,7 +111,6 @@ export function TeamEntryPage() {
         <section className="space-y-4">
           <p className="text-sm text-game-muted">ファシリテーター操作画面</p>
 
-          <EventAnnouncementCard team={team} session={session} />
           {showCurrentAssetInput ? (
             <CurrentAssetInput
               team={team}
