@@ -1,0 +1,203 @@
+# Implementation Plan
+
+## Phase 方針
+
+- **Phase 1（MVP）**: タスク 1〜9 — localStorage + 運営/チーム画面で一連フロー完結（10.1）
+- **Phase 2**: タスク 10 — Supabase + Realtime（10.2, 8）
+- **Phase 3**: タスク 8 の残り強調・CSV・リセットは Phase 1 で先行実装し、Realtime 連携を Phase 2 で強化（10.3）
+
+---
+
+- [ ] 1. プロジェクト基盤と UI プリミティブ
+- [x] 1.1 Vite + React + TypeScript + Tailwind の SPA 骨格を構築する
+  - ダークテーマ基調のグローバルスタイルとモバイルファーストのベースレイアウトを適用する
+  - ルーティングの土台（チーム・イベント・管理）を用意する
+  - ビルドと開発サーバーが起動し空画面が表示される状態にする
+  - _Requirements: 9.1, 10.1_
+- [x] 1.2 (P) ゲーム UI 用プリミティブコンポーネントを実装する
+  - 大きな金額表示・大きなボタン・カード・損益色（緑/赤）・借入警告色（黄）を提供する
+  - チーム画面と管理画面から再利用できる見た目に統一する
+  - Story 的に各プリミティブが単体で期待どおり表示される
+  - _Requirements: 5.7, 5.8, 9.2, 9.3, 9.4_
+  - _Boundary: UI Primitives_
+- [x] 1.3 (P) Vitest テスト環境をセットアップする
+  - ドメイン計算ユニットテストを実行できる runner と設定を整える
+  - `npm test`（または同等）で空テストが成功する
+  - _Requirements: 10.1_
+
+- [ ] 2. ゲームドメイン定数と計算エンジン
+- [x] 2.1 (P) 投資先・イベント・ゲーム定数を定義する
+  - 7 投資先、16 標準イベント（付録 A）、BONUS 特需発生（付録 B）、10,000P 単位・借入定数をコード化する
+  - イベント ID と表示名の対応が一意に解決できる
+  - _Requirements: 2.1, 4.1, 4.4, 4.5_
+  - _Boundary: Game Constants_
+- [x] 2.2 投資・借入・イベント計算の純粋関数を実装する
+  - 標準イベント: `round(投資額 × (1 + 率))`、BONUS: `round(投資額 × 倍率)`、未投資持ち越しを含む SET 終了資産を算出する
+  - 10,000P 単位・資産上限・借入条件（80,000P 加算 / 100,000P 負債記録）を検証する
+  - 代表ケース（例: 農業 50,000P + かぶせ茶 +80% → 90,000P）がテスト可能な API になる
+  - _Requirements: 2.4, 2.5, 3.3, 3.4, 4.4, 4.5, 4.6, 7_
+- [x] 2.3* 計算エンジンのユニットテストを追加する
+  - 付録 A 全 16 イベントと BONUS 倍率の代表金額テストを通す
+  - 借入・最終資産（現在資産 − 借入総額）の境界値を検証する
+  - _Requirements: 3.1, 3.2, 3.7, 4.4, 4.5, 4.6_
+
+- [x] 3. Phase 1 永続化（localStorage）
+- [x] 3.1 ゲームセッション共有状態の永続化を実装する
+  - `session_set`・`active_event_id`・`active_event_set_number` を singleton で読み書きする
+  - 運営が SET イベントを確定すると保存され、読み取りで同一内容が得られる
+  - _Requirements: 4.2, 8.2, 10.1_
+  - _Boundary: GameSessionRepository_
+- [x] 3.2 チーム状態の localStorage 永続化を実装する
+  - チームコード照合、ステータス、資産、借入、`pending_investments`、`investment_submitted_at` を保存する
+  - シード用の初期チームデータ投入手段（開発用）を用意する
+  - _Requirements: 7.1, 7.2, 8.1, 8.5, 10.1_
+  - _Boundary: TeamRepository_
+- [x] 3.3 SET 結果履歴の localStorage 永続化を実装する
+  - SET ごとに 1 件の結果スナップショット（投資 JSON・選択イベント・結果資産）を保存する
+  - 同一 `(team_id, set_number)` の二重保存を防ぐ
+  - _Requirements: 1.5, 8.3, 10.1_
+  - _Boundary: SetResultRepository_
+
+- [x] 4. ドメインサービス層
+- [x] 4.1 投資サービスを実装する
+  - 投資追加・削除・残り投資可能額・編集可否（`investing` のみ）を提供する
+  - バリデーションエラーを呼び出し元が表示できる形で返す
+  - _Requirements: 2.2, 2.3, 2.4, 2.5, 2.6, 2.8, 2.9_
+  - _Boundary: InvestmentService_
+- [x] 4.2 借入サービスを実装する
+  - 借入可否、1 SET 1 回制限、実行時の資産/負債更新、最終資産算出を提供する
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7_
+  - _Boundary: BorrowingService_
+- [x] 4.3 イベント割当サービスを実装する
+  - 運営のみ SET 単位でイベントを確定・変更できる
+  - チームの `current_set` と一致する場合のみ有効な `active_event_id` を返す
+  - _Requirements: 4.1, 4.2, 4.3, 6.13, 6.14_
+  - _Boundary: EventAssignmentService_
+- [x] 4.4 イベント計算サービスを実装する
+  - 割当済みイベントのみでプレビュー・確定計算する（未割当時は `EVENT_NOT_ASSIGNED`）
+  - 投資先別結果・増減額・SET 終了資産を返す
+  - _Requirements: 4.4, 4.5, 4.6, 4.8, 4.10_
+  - _Boundary: EventCalculationService_
+- [x] 4.5 ゲーム進行サービスを実装する
+  - SET 開始、投資完了（`investment_submitted` + スナップショット）、イベント画面へ進む（`waiting_event`）、計算確定後の次 SET / 終了を処理する
+  - 次 SET 開始時に投資完了フラグとスナップショットをリセットする
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8_
+  - _Boundary: GameProgressService_
+- [x] 4.6 (P) 順位サービスを実装する
+  - `net_asset = current_asset - total_debt` の降順で順位を付与する（進行中・終了後同一式）
+  - _Requirements: 6.7, 6.8_
+  - _Boundary: RankingService_
+- [x] 4.7 (P) 準備状況サービスを実装する
+  - 準備状況ラベル（入力中/投資完了/イベント待ち等）と「投資完了 N / M チーム」集計を提供する
+  - _Requirements: 6.3, 6.4, 6.5_
+  - _Boundary: PreparationStatusService_
+
+- [x] 5. クライアント状態・認証・同期（Phase 1）
+- [x] 5.1 Zustand ストアとセッション購読を実装する
+  - チームドラフト・全チーム一覧・ゲームセッションを保持し、localStorage 更新時に再読込する
+  - 運営のイベント確定がチーム画面ストアへ反映される（同一ブラウザ内のタブ間は storage イベントで同期）
+  - _Requirements: 6.6, 6.15, 8.2, 8.4_
+  - _Boundary: Client Stores_
+- [x] 5.2 簡易認証（チームコード・管理パスコード）を実装する
+  - 無効コードは画面を拒否し、有効時のみルートへ進む
+  - 管理パスコードは環境変数と照合する
+  - _Requirements: 7.1, 7.2, 7.3, 7.4_
+  - _Boundary: AuthService_
+- [x] 5.3 データ同期サービス（Phase 1）を実装する
+  - チーム操作・イベント確定・SET 結果の永続化呼び出しを一元化する
+  - 通信断時用にドラフトの localStorage 補助保存を行う
+  - _Requirements: 8.1, 8.2, 8.3, 8.5_
+
+- [x] 6. チーム入力画面
+- [x] 6.1 チーム入力画面の資産・投資 UI を実装する
+  - チーム名、SET、資産、借入総額、残り投資可能額を大きく表示する
+  - 投資先追加・金額入力（10,000P 単位）・削除・エラー表示を行う
+  - スマホ片手操作向けの下固定アクションバーを配置する
+  - _Requirements: 2.7, 5.1, 5.2, 5.6, 5.7, 5.8, 9.5_
+  - _Boundary: TeamEntryPage_
+- [x] 6.2 借入 UI を実装する
+  - 条件を満たすときのみ借入実行でき、警告表示が出る
+  - _Requirements: 3.1, 3.2, 3.8, 9.4_
+  - _Boundary: TeamEntryPage_
+- [x] 6.3 投資完了・イベント画面への遷移を実装する
+  - `investing` 時のみ「投資完了」、`investment_submitted` 後に「イベント画面へ進む」を有効化する
+  - 投資完了後はフォームを読み取り専用にする
+  - _Requirements: 1.3, 1.4, 2.8, 5.3, 5.4, 5.5_
+  - _Boundary: TeamEntryPage_
+- [x] 6.4 運営発表イベント表示カードを実装する
+  - チーム入力画面に、割当済みイベント名・増減率/倍率を読み取り専用表示する
+  - 未発表時は「イベント未発表」を表示する
+  - 運営がダッシュボードでイベント確定後、手動リロードなしで内容が変わる
+  - _Requirements: 4.7, 5.9, 6.15, 8.2_
+  - _Boundary: EventAnnouncementCard_
+
+- [x] 7. イベント結果画面
+- [x] 7.1 割当済みイベント表示と計算プレビューを実装する
+  - イベント選択 UI は置かず、運営割当イベントのみ表示する
+  - 未割当時は計算不可と「運営のイベント発表待ち」を表示する
+  - プレビューで投資先別結果・増減額・SET 終了資産が見える
+  - _Requirements: 4.3, 4.8, 4.10, 9.2_
+  - _Boundary: EventResultsPage_
+- [x] 7.2 SET 結果確定と結果表示を実装する
+  - 計算確定で SET 結果を保存し、次 SET へ資産を引き継ぐ（SET6 後は終了・最終精算）
+  - 確定後に投資先別結果・増減額・SET 終了資産を表示する
+  - _Requirements: 1.5, 1.6, 1.7, 4.9, 8.3_
+  - _Boundary: EventResultsPage_
+
+- [x] 8. 運営ダッシュボード
+- [x] 8.1 管理パスコードゲートとダッシュボード骨格を実装する
+  - PC/タブレット向け広いレイアウトで一覧テーブルを表示する
+  - _Requirements: 7.3, 7.4, 9.6_
+  - _Boundary: AdminDashboardPage_
+- [x] 8.2 全チーム一覧・順位・準備状況を実装する
+  - チーム名、SET、資産、借入、net_asset、順位、ステータス、準備状況ラベルを表示する
+  - 「投資完了 N / M チーム」集計バーを表示する
+  - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.7, 6.8_
+  - _Boundary: AdminDashboardPage_
+- [x] 8.3 準備状況・借入・イベント待ちの強調表示を実装する
+  - `investing`（未投資完了）、借入あり、`waiting_event` を視覚的に区別する
+  - _Requirements: 6.5, 6.9, 6.10_
+  - _Boundary: AdminDashboardPage_
+- [x] 8.4 運営による SET イベント選択・確定を実装する
+  - 16 標準 + BONUS から選択し、現在 SET の `active_event_id` を確定する
+  - ダッシュボード上に確定イベント名を表示し、全チーム端末へ反映する
+  - _Requirements: 4.1, 4.2, 6.13, 6.14, 6.15, 8.2_
+  - _Boundary: EventAssignPanel_
+- [x] 8.5 CSV エクスポートを実装する
+  - 一覧データ（準備状況・イベント確定時刻含む）を CSV ダウンロードできる
+  - _Requirements: 6.11_
+  - _Boundary: CSV Export_
+- [x] 8.6 ゲームリセットを実装する
+  - 確認ダイアログ後にセッション・全チーム・SET 結果を初期状態に戻す
+  - _Requirements: 6.12_
+  - _Boundary: AdminDashboardPage_
+
+- [x] 9. Phase 1 統合検証
+- [x] 9.1 ローカル環境で E2E フローを通す
+  - 運営がイベント確定 → チームが投資 → 投資完了 → イベント画面で計算 → 次 SET まで手動で完走できる
+  - Phase 1 の受入条件（10.1）を満たす
+  - _Requirements: 1, 2, 3, 4, 5, 8, 10.1_
+- [x] 9.2* 主要画面のスモークテストを追加する
+  - 投資完了ロック、未発表イベント時の計算拒否、借入拒否の 3 パスを自動化する
+  - _Requirements: 2.8, 3.2, 4.10_
+
+- [x] 10. Phase 2 — Supabase 連携
+- [x] 10.1 Supabase スキーマと Realtime publication を構築する
+  - `game_sessions`・`teams`・`set_results` テーブルと制約を作成する
+  - Realtime publication に 3 テーブルを追加する
+  - _Requirements: 8, 10.2_
+  - _Boundary: Supabase Schema_
+- [x] 10.2 Supabase リポジトリ実装とデータソース切替を行う
+  - 環境変数で local / supabase を切替できる
+  - CRUD が Phase 1 と同等の振る舞いになる
+  - _Requirements: 8.1, 8.2, 8.3, 10.2_
+  - _Boundary: SupabaseRepository_
+- [x] 10.3 Realtime 購読で多端末同期を実装する
+  - `game_sessions` UPDATE で各チーム端末のイベント表示が更新される
+  - `teams` / `set_results` 更新で運営ダッシュボードが手動リロードなしで更新される
+  - _Requirements: 6.6, 8.2, 8.4, 10.2_
+  - _Depends: 10.1, 10.2_
+  - _Boundary: SyncService_
+- [x] 10.4 Phase 2 統合検証を行う
+  - 2 ブラウザ（運営 + チーム）でイベント確定が即時反映されることを確認する
+  - _Requirements: 10.2_

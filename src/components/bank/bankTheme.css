@@ -1,0 +1,75 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700;900&display=swap');
+
+.bank-root {
+  font-family: 'Times New Roman', 'Noto Serif JP', Georgia, serif;
+  background: linear-gradient(180deg, #e8f4ff 0%, #fff9c4 40%, #ffc0cb 100%);
+  color: #1a1a1a;
+  min-height: 100vh;
+}
+
+.bank-marquee {
+  background: linear-gradient(90deg, #003399, #0066cc, #003399);
+  color: #ffff00;
+  padding: 0.35rem 0;
+  overflow: hidden;
+  white-space: nowrap;
+  border-block: 3px double #ff0000;
+}
+
+.bank-marquee-inner {
+  display: inline-block;
+  animation: bank-marquee 18s linear infinite;
+}
+
+@keyframes bank-marquee {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+.bank-blink {
+  animation: bank-blink 0.9s step-end infinite;
+}
+
+@keyframes bank-blink {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+.bank-frame {
+  border: 4px ridge #c0c0c0;
+  box-shadow:
+    inset 0 0 0 2px #fff,
+    4px 4px 0 #666;
+  background: #fffef5;
+}
+
+.bank-btn-cheesy {
+  background: linear-gradient(180deg, #ff6699, #cc0033);
+  border: 3px outset #ff99aa;
+  color: #ffff00;
+  font-weight: 900;
+  text-shadow: 1px 1px 0 #660000;
+  padding: 0.75rem 1.25rem;
+  cursor: pointer;
+}
+
+.bank-btn-cheesy:hover {
+  filter: brightness(1.08);
+}
+
+.bank-btn-cheesy:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.bank-link-hot {
+  color: #ff0000;
+  font-size: 1.35rem;
+  font-weight: 900;
+  text-decoration: underline wavy #00aa00;
+}
